@@ -84,7 +84,7 @@ __device__ int colors[17][3] = {
 void allocate_image_buffer(){
     int rgb_size = 3;
     image_buffer = (unsigned char **) malloc(sizeof(unsigned char *) * image_buffer_size);
-    cudaMalloc((unsigned char ***)&d_image_buffer, image_buffer_size);
+    cudaMalloc((unsigned char ***)&d_image_buffer, sizeof(unsigned char *) * image_buffer_size);
 
 
     for(int i = 0; i < image_buffer_size; i++){
@@ -157,15 +157,16 @@ void write_to_file(){
 };
 
 __global__ void calc(int image_size, 
-    int c_x_min,
-    int c_y_min, 
-    int pixel_height,
-    int pixel_width,
+    double c_x_min,
+    double c_y_min, 
+    double pixel_height,
+    double pixel_width,
     int n_call,
     int i_x_max,
     int i_y_max,
     unsigned char **image_buffer)
 {
+    
     double z_x;
     double z_y;
     double z_x_squared;
@@ -184,8 +185,9 @@ __global__ void calc(int image_size,
 
     i_x = n_call*blockDim.x * blockDim.y*gridDim.x +  (threadIdx.x + blockIdx.x * blockDim.x * blockDim.y);
     i_y = n_call*blockDim.x * blockDim.y*gridDim.x + (threadIdx.y + blockIdx.x * blockDim.x * blockDim.x);
-
+    
     if(i_x < image_size && i_y < image_size){
+        printf("(x,y): (%d, %d)\n",  i_x, i_y);     
         c_y = c_y_min + i_y * pixel_height;
 
         if(fabs(c_y) < pixel_height / 2){
@@ -211,7 +213,7 @@ __global__ void calc(int image_size,
             z_x_squared = z_x * z_x;
             z_y_squared = z_y * z_y;
         };
-        // update_rgb_buffer(iteration, i_x, i_y, i_x_max, i_y_max);
+        printf("%d\n", iteration);
         
         if(iteration == iteration_max){
             image_buffer[(i_x_max * i_y) + i_x][0] = colors[gradient_size][0];
@@ -237,7 +239,7 @@ void compute_mandelbrot(){
     dim3 threadsPerBlock (x_thread, y_thread);
 
     while(n_tasks > 0){
-        cudaMemcpy(d_image_buffer, image_buffer, image_buffer_size, cudaMemcpyHostToDevice);
+        cudaMemcpy(d_image_buffer, image_buffer, image_buffer_size*sizeof(unsigned char *), cudaMemcpyHostToDevice);
         calc<<<n_blocks, threadsPerBlock>>>(image_size, c_x_min, c_y_min, pixel_height, pixel_width, n_call, i_x_max, i_y_max, d_image_buffer);
 
         n_tasks -= x_thread*y_thread*n_blocks;
@@ -251,9 +253,9 @@ void compute_mandelbrot(){
 int main(int argc, char *argv[]){
     init(argc, argv);
 
-    start_timer();
     allocate_image_buffer();
     // write_to_file();
+    start_timer();
     printf("buffer alocado!\n");
     compute_mandelbrot();
     stop_timer();
