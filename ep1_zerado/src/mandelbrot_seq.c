@@ -124,7 +124,8 @@ void compute_mandelbrot(){
 
     double c_x;
     double c_y;
-
+    printf("%d\n", i_y_max);
+    printf("%d\n", i_x_max);
     for(i_y = 0; i_y < i_y_max; i_y++){
         c_y = c_y_min + i_y * pixel_height;
 

@@ -5,21 +5,22 @@ IMAGE=.ppm
 CC=gcc
 CC_OPT=-std=c11
 
-CC_OMP=-fopenmp
-CC_PTH=-pthread
+CC_OMPI=-openmpi
+NVCC=nvcc
+
 
 .PHONY: all
-all: $(OUTPUT)_omp $(OUTPUT)_pth $(OUTPUT)_seq
+all: $(OUTPUT)_cuda $(OUTPUT)_ompi $(OUTPUT)_seq
 
-$(OUTPUT)_omp: $(OUTPUT)_omp.c
-	$(CC) -o $(OUTPUT)_omp $(CC_OPT) $(CC_OMP) $(OUTPUT)_omp.c
+$(OUTPUT)_cuda: $(OUTPUT)_cuda.cu
+	$(NVCC) -o $(OUTPUT)_cuda $(OUTPUT)_cuda.cu
 
-$(OUTPUT)_pth: $(OUTPUT)_pth.c
-	$(CC) -o $(OUTPUT)_pth $(CC_OPT) $(CC_PTH) $(OUTPUT)_pth.c
+$(OUTPUT)_ompi: $(OUTPUT)_ompi.c
+	$(CC) -o $(OUTPUT)_ompi $(CC_OPT) $(CC_OMPI) $(OUTPUT)_ompi.c
 
 $(OUTPUT)_seq: $(OUTPUT)_seq.c
 	$(CC) -o $(OUTPUT)_seq $(CC_OPT) $(OUTPUT)_seq.c
 
 .PHONY: clean
 clean:
-	rm $(OUTPUT)_omp $(OUTPUT)_pth $(OUTPUT)_seq *$(IMAGE)
+	rm $(OUTPUT)_cuda $(OUTPUT)_ompi $(OUTPUT)_seq *$(IMAGE)
