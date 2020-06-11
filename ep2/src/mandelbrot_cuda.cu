@@ -1,3 +1,4 @@
+// #include <__clang_cuda_builtin_vars.h>
 #include <cuda_runtime.h>
 #include <cuda_runtime_api.h>
 #include <driver_types.h>
@@ -58,9 +59,10 @@ int i_x_max;
 int i_y_max;
 int image_buffer_size;
 int i_o;
-int x_thread;
-int y_thread;
-int n_blocks;
+int grid_x;
+int grid_y;
+int block_x;
+int block_y;
 
 __device__ int gradient_size = 16;
 __device__ int colors[17][3] = {
@@ -96,7 +98,7 @@ void allocate_image_buffer(){
 
 void init(int argc, char *argv[]){
     if(argc < 6){
-        printf("usage: ./mandelbrot_seq c_x_min c_x_max c_y_min c_y_max image_size x_thread y_thread n_blocks\n");
+        printf("usage: ./mandelbrot_seq c_x_min c_x_max c_y_min c_y_max image_size grid_x grid_y block_x block_y\n");
         printf("examples with image_size = 4096:\n");
         printf("    Triple Spiral Valley: ./mandelbrot_seq -0.188 -0.012 0.554 0.754 4096\n");
         exit(0);
@@ -107,9 +109,10 @@ void init(int argc, char *argv[]){
         sscanf(argv[3], "%lf", &c_y_min);
         sscanf(argv[4], "%lf", &c_y_max);
         sscanf(argv[5], "%d", &image_size);
-        sscanf(argv[6], "%d", &x_thread);
-        sscanf(argv[7], "%d", &y_thread);
-        sscanf(argv[8], "%d", &n_blocks);
+        sscanf(argv[6], "%d", &grid_x);
+        sscanf(argv[7], "%d", &grid_y);
+        sscanf(argv[8], "%d", &block_x);
+        sscanf(argv[9], "%d", &block_y);
 
         
         i_x_max           = image_size;
@@ -171,13 +174,11 @@ __global__ void calc(int image_size,
     double c_y_min, 
     double pixel_height,
     double pixel_width,
-    int n_call,
     int i_x_max,
     int i_y_max,
     int image_buffer_size,
     unsigned char *image_buffer)
 {
-    
     double z_x;
     double z_y;
     double z_x_squared;
@@ -187,6 +188,9 @@ __global__ void calc(int image_size,
 
     int i_x;
     int i_y;
+    int i_x_thread;
+    int i_y_thread;
+    int index;
     int iteration;
 
     int color;
@@ -194,70 +198,71 @@ __global__ void calc(int image_size,
     double c_x;
     double c_y;
 
-    i_x = n_call*blockDim.x * blockDim.y*gridDim.x +  (threadIdx.x + blockIdx.x * blockDim.x * blockDim.y);
-    i_y = n_call*blockDim.x * blockDim.y*gridDim.x + (threadIdx.y + blockIdx.x * blockDim.x * blockDim.x);
+    int n_tasks_max_x = blockDim.x * gridDim.x;
+    int n_tasks_max_y = blockDim.y * gridDim.y;
+
+    i_x_thread = blockIdx.x*blockDim.x + threadIdx.x;
+    i_y_thread = blockIdx.y*blockDim.y + threadIdx.y;
+
+    // n_call*blockDim.x * blockDim.y*gridDim.x +  (threadIdx.x + blockIdx.x * blockDim.x * blockDim.y);
     // NÃO POSSO EXECUTAR ISSO SENAO DA ERRO
     // FAZER O UPDATE SEPARADO
     // printf("buffer: (%d, %d, %d)\n",  image_buffer[(i_x_max * i_y) + i_x], image_buffer[(i_x_max * i_y) + i_x + image_buffer_size], image_buffer[(i_x_max * i_y) + i_x + 2*image_buffer_size]);
-    if(i_x < image_size && i_y < image_size){
-        // printf("(x,y): (%d, %d)\n",  i_x, i_y);     
-        c_y = c_y_min + i_y * pixel_height;
+    for(i_x = i_x_thread; i_x < i_x_max; i_x+=n_tasks_max_x){
+        for(i_y = i_y_thread; i_y < i_y_max; i_y += n_tasks_max_y){
+            index = (i_y_max * i_y) + i_x;
+            // printf("(x,y): (%d, %d)\n",  i_x, i_y);     
+            c_y = c_y_min + i_y * pixel_height;
 
-        if(fabs(c_y) < pixel_height / 2){
-            c_y = 0.0;
-        };
+            if(fabs(c_y) < pixel_height / 2){
+                c_y = 0.0;
+            };
 
-        c_x         = c_x_min + i_x * pixel_width;
+            c_x         = c_x_min + i_x * pixel_width;
 
-        z_x         = 0.0;
-        z_y         = 0.0;
+            z_x         = 0.0;
+            z_y         = 0.0;
 
-        z_x_squared = 0.0;
-        z_y_squared = 0.0;
+            z_x_squared = 0.0;
+            z_y_squared = 0.0;
 
-        for(iteration = 0;
-            iteration < iteration_max && \
-            ((z_x_squared + z_y_squared) < escape_radius_squared);
-            iteration++)
-        {
-            z_y         = 2 * z_x * z_y + c_y;
-            z_x         = z_x_squared - z_y_squared + c_x;
+            for(iteration = 0;
+                iteration < iteration_max && \
+                ((z_x_squared + z_y_squared) < escape_radius_squared);
+                iteration++)
+            {
+                z_y         = 2 * z_x * z_y + c_y;
+                z_x         = z_x_squared - z_y_squared + c_x;
 
-            z_x_squared = z_x * z_x;
-            z_y_squared = z_y * z_y;
-        };
-        // printf("%d\n", iteration);
+                z_x_squared = z_x * z_x;
+                z_y_squared = z_y * z_y;
+            };
+            // printf("%d\n", iteration);
+            
+            if(iteration == iteration_max){
+                image_buffer[index] = colors[gradient_size][0];
+                image_buffer[index + image_buffer_size] = colors[gradient_size][1];
+                image_buffer[index + 2*image_buffer_size] = colors[gradient_size][2];
+            }
+            else{
+                color = iteration % gradient_size;
         
-        if(iteration == iteration_max){
-            image_buffer[(i_x_max * i_y) + i_x] = colors[gradient_size][0];
-            image_buffer[(i_x_max * i_y) + i_x + image_buffer_size] = colors[gradient_size][1];
-            image_buffer[(i_x_max * i_y) + i_x + 2*image_buffer_size] = colors[gradient_size][2];
-        }
-        else{
-            color = iteration % gradient_size;
-    
-            image_buffer[(i_y_max * i_y) + i_x] = colors[color][0];
-            image_buffer[(i_y_max * i_y) + i_x + image_buffer_size] = colors[color][1];
-            image_buffer[(i_y_max * i_y) + i_x + 2*image_buffer_size] = colors[color][2];
+                image_buffer[index] = colors[color][0];
+                image_buffer[index + image_buffer_size] = colors[color][1];
+                image_buffer[index + 2*image_buffer_size] = colors[color][2];
+            };
+
+            // printf("buffer: (%d, %d, %d)\n",  image_buffer[(i_x_max * i_y) + i_x], image_buffer[(i_x_max * i_y) + i_x + image_buffer_size], image_buffer[(i_x_max * i_y) + i_x + 2*image_buffer_size]);
         };
-
-        // printf("buffer: (%d, %d, %d)\n",  image_buffer[(i_x_max * i_y) + i_x], image_buffer[(i_x_max * i_y) + i_x + image_buffer_size], image_buffer[(i_x_max * i_y) + i_x + 2*image_buffer_size]);
-
     };
 }
 
 void compute_mandelbrot(){
-    int n_call = 0;
-    int n_tasks;
 
-    n_tasks = image_size*image_size;
-    dim3 threadsPerBlock (x_thread, y_thread);
+    dim3 blockDim(block_x, block_y, 1);
+    dim3 gridDim(grid_x, grid_y, 1);
 
-    while(n_tasks > 0){
-        calc<<<n_blocks, threadsPerBlock>>>(image_size, c_x_min, c_y_min, pixel_height, pixel_width, n_call, i_x_max, i_y_max, image_buffer_size, d_image_buffer);
-        n_tasks -= x_thread*y_thread*n_blocks;
-        n_call += 1;
-    };
+    calc<<<  gridDim, blockDim, 0 >>>(image_size, c_x_min, c_y_min, pixel_height, pixel_width, i_x_max, i_y_max, image_buffer_size, d_image_buffer);
     cudaMemcpy(image_buffer, d_image_buffer, sizeof(unsigned char)*image_buffer_size*3, cudaMemcpyDeviceToHost);
     cudaFree(d_image_buffer);
 };

@@ -39,6 +39,7 @@ int colors[17][3] = {
                         {106, 52, 3},
                         {16, 16, 16},
                     };
+        // printf("(x,y): (%d, %d)\n",  i_x, i_y);     
 
 void allocate_image_buffer(){
     int rgb_size = 3;
@@ -124,9 +125,6 @@ void compute_mandelbrot(){
 
     double c_x;
     double c_y;
-
-printf(i_y_max);
-printf(i_x_max);
     for(i_y = 0; i_y < i_y_max; i_y++){
         c_y = c_y_min + i_y * pixel_height;
 
@@ -155,6 +153,8 @@ printf(i_x_max);
             };
 
             update_rgb_buffer(iteration, i_x, i_y);
+            printf("(%d, %d): %d\n", image_buffer[(i_y_max * i_y) + i_x][0], image_buffer[(i_y_max * i_y) + i_x][1], image_buffer[(i_y_max * i_y) + i_x][2]);
+
         };
     };
 };
