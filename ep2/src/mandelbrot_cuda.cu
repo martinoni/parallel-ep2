@@ -1,3 +1,4 @@
+#include <cuda_runtime.h>
 #include <cuda_runtime_api.h>
 #include <driver_types.h>
 #include <stdio.h>
@@ -49,8 +50,9 @@ double pixel_height;
 __device__ int iteration_max = 200;
 
 int image_size;
-unsigned char **image_buffer;
-unsigned char **d_image_buffer;
+unsigned char *image_buffer;
+unsigned char *d_image_buffer;
+unsigned char **image_buffer_formatted;
 
 int i_x_max;
 int i_y_max;
@@ -83,12 +85,12 @@ __device__ int colors[17][3] = {
 
 void allocate_image_buffer(){
     int rgb_size = 3;
-    image_buffer = (unsigned char **) malloc(sizeof(unsigned char *) * image_buffer_size);
-    cudaMalloc((unsigned char ***)&d_image_buffer, sizeof(unsigned char *) * image_buffer_size);
-
+    image_buffer_formatted = (unsigned char **) malloc(sizeof(unsigned char* ) * image_buffer_size);
+    image_buffer = (unsigned char *) malloc(sizeof(unsigned char) * image_buffer_size*rgb_size);
+    cudaMalloc((void **)&d_image_buffer, sizeof(unsigned char) * image_buffer_size * rgb_size);
 
     for(int i = 0; i < image_buffer_size; i++){
-        image_buffer[i] = (unsigned char *) malloc(sizeof(unsigned char) * rgb_size);
+        image_buffer_formatted[i] = (unsigned char *) malloc(sizeof(unsigned char) * rgb_size);
     };
 };
 
@@ -144,13 +146,21 @@ void write_to_file(){
 
     int max_color_component_value = 255;
 
+    for(int i = 0; i < image_buffer_size; i++){
+        image_buffer_formatted[i][0] = image_buffer[i];
+        image_buffer_formatted[i][1] = image_buffer[i + image_buffer_size];
+        image_buffer_formatted[i][2] = image_buffer[i + 2*image_buffer_size];
+    };
+
     file = fopen(filename,"wb");
 
     fprintf(file, "P6\n %s\n %d\n %d\n %d\n", comment,
             i_x_max, i_y_max, max_color_component_value);
 
+    fwrite(image_buffer, sizeof(image_buffer[0]), 1, file);
+
     for(int i = 0; i < image_buffer_size; i++){
-        fwrite(image_buffer[i], 1 , 3, file);
+        fwrite(image_buffer_formatted[i], 1 , 3, file);
     };
 
     fclose(file);
@@ -164,7 +174,8 @@ __global__ void calc(int image_size,
     int n_call,
     int i_x_max,
     int i_y_max,
-    unsigned char **image_buffer)
+    int image_buffer_size,
+    unsigned char *image_buffer)
 {
     
     double z_x;
@@ -185,9 +196,11 @@ __global__ void calc(int image_size,
 
     i_x = n_call*blockDim.x * blockDim.y*gridDim.x +  (threadIdx.x + blockIdx.x * blockDim.x * blockDim.y);
     i_y = n_call*blockDim.x * blockDim.y*gridDim.x + (threadIdx.y + blockIdx.x * blockDim.x * blockDim.x);
-    
+    // NÃO POSSO EXECUTAR ISSO SENAO DA ERRO
+    // FAZER O UPDATE SEPARADO
+    // printf("buffer: (%d, %d, %d)\n",  image_buffer[(i_x_max * i_y) + i_x], image_buffer[(i_x_max * i_y) + i_x + image_buffer_size], image_buffer[(i_x_max * i_y) + i_x + 2*image_buffer_size]);
     if(i_x < image_size && i_y < image_size){
-        printf("(x,y): (%d, %d)\n",  i_x, i_y);     
+        // printf("(x,y): (%d, %d)\n",  i_x, i_y);     
         c_y = c_y_min + i_y * pixel_height;
 
         if(fabs(c_y) < pixel_height / 2){
@@ -213,20 +226,22 @@ __global__ void calc(int image_size,
             z_x_squared = z_x * z_x;
             z_y_squared = z_y * z_y;
         };
-        printf("%d\n", iteration);
+        // printf("%d\n", iteration);
         
         if(iteration == iteration_max){
-            image_buffer[(i_x_max * i_y) + i_x][0] = colors[gradient_size][0];
-            image_buffer[(i_x_max * i_y) + i_x][1] = colors[gradient_size][1];
-            image_buffer[(i_x_max * i_y) + i_x][2] = colors[gradient_size][2];
+            image_buffer[(i_x_max * i_y) + i_x] = colors[gradient_size][0];
+            image_buffer[(i_x_max * i_y) + i_x + image_buffer_size] = colors[gradient_size][1];
+            image_buffer[(i_x_max * i_y) + i_x + 2*image_buffer_size] = colors[gradient_size][2];
         }
         else{
             color = iteration % gradient_size;
     
-            image_buffer[(i_y_max * i_y) + i_x][0] = colors[color][0];
-            image_buffer[(i_y_max * i_y) + i_x][1] = colors[color][1];
-            image_buffer[(i_y_max * i_y) + i_x][2] = colors[color][2];
+            image_buffer[(i_y_max * i_y) + i_x] = colors[color][0];
+            image_buffer[(i_y_max * i_y) + i_x + image_buffer_size] = colors[color][1];
+            image_buffer[(i_y_max * i_y) + i_x + 2*image_buffer_size] = colors[color][2];
         };
+
+        // printf("buffer: (%d, %d, %d)\n",  image_buffer[(i_x_max * i_y) + i_x], image_buffer[(i_x_max * i_y) + i_x + image_buffer_size], image_buffer[(i_x_max * i_y) + i_x + 2*image_buffer_size]);
 
     };
 }
@@ -239,14 +254,12 @@ void compute_mandelbrot(){
     dim3 threadsPerBlock (x_thread, y_thread);
 
     while(n_tasks > 0){
-        cudaMemcpy(d_image_buffer, image_buffer, image_buffer_size*sizeof(unsigned char *), cudaMemcpyHostToDevice);
-        calc<<<n_blocks, threadsPerBlock>>>(image_size, c_x_min, c_y_min, pixel_height, pixel_width, n_call, i_x_max, i_y_max, d_image_buffer);
-
+        calc<<<n_blocks, threadsPerBlock>>>(image_size, c_x_min, c_y_min, pixel_height, pixel_width, n_call, i_x_max, i_y_max, image_buffer_size, d_image_buffer);
         n_tasks -= x_thread*y_thread*n_blocks;
         n_call += 1;
     };
-
-    cudaMemcpy(image_buffer, d_image_buffer, image_buffer_size, cudaMemcpyDeviceToHost);
+    cudaMemcpy(image_buffer, d_image_buffer, sizeof(unsigned char)*image_buffer_size*3, cudaMemcpyDeviceToHost);
+    cudaFree(d_image_buffer);
 };
 
 
@@ -254,9 +267,7 @@ int main(int argc, char *argv[]){
     init(argc, argv);
 
     allocate_image_buffer();
-    // write_to_file();
     start_timer();
-    printf("buffer alocado!\n");
     compute_mandelbrot();
     stop_timer();
     write_to_file();
