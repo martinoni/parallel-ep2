@@ -15,7 +15,13 @@ double pixel_height;
 int iteration_max = 200;
 
 int image_size;
+int image_buffer_unit[3];
 unsigned char **image_buffer;
+
+// MPI:
+int numtasks, taskid, len, tag;
+char hostname[MPI_MAX_PROCESSOR_NAME];
+
 
 int max_process_per_dim;
 
@@ -55,18 +61,20 @@ _Bool isPerfectSquare(long double x)
   return ((sr - floor(sr)) == 0); 
 } 
 
-void allocate_image_buffer()
-{
-    int rgb_size = 3;
-    image_buffer = (unsigned char **)malloc(sizeof(unsigned char *) * image_buffer_size);
+void allocate_image_buffer(int taskid)
+{   
+    if(taskid == MASTER){
+        int rgb_size = 3;
+        image_buffer = (unsigned char **)malloc(sizeof(unsigned char *) * image_buffer_size);
 
-    for (int i = 0; i < image_buffer_size; i++)
-    {
-        image_buffer[i] = (unsigned char *)malloc(sizeof(unsigned char) * rgb_size);
-    };
+        for (int i = 0; i < image_buffer_size; i++)
+        {
+            image_buffer[i] = (unsigned char *)malloc(sizeof(unsigned char) * rgb_size);
+        };
+    }
 };
 
-void init(int argc, char *argv[])
+void init()
 {
     c_x_min = -0.188;
     c_x_max = -0.012;
@@ -74,9 +82,10 @@ void init(int argc, char *argv[])
     c_y_max = 0.754;
 
     // MUDAR ISSO
-    image_size = 32;
+    image_size = 8;
 
-    max_process_per_dim = sqrt(argc);
+    max_process_per_dim = sqrt(numtasks);
+    // printf("MAX = %d\n", max_process_per_dim);
 
     i_x_max = image_size;
     i_y_max = image_size;
@@ -127,7 +136,7 @@ void write_to_file()
     fclose(file);
 };
 
-void compute_mandelbrot(int argc, char *argv[])
+void compute_mandelbrot(int numtasks, int taskid)
 {
     double z_x;
     double z_y;
@@ -140,20 +149,14 @@ void compute_mandelbrot(int argc, char *argv[])
     int i_y;
     int i_x_thread;
     int i_y_thread;
+    int k;
 
     double c_x;
     double c_y;
-    
-    // MPI:
-    int numtasks, taskid, len;
-    char hostname[MPI_MAX_PROCESSOR_NAME];
+
     MPI_Status status;
-
-    MPI_Init(&argc, &argv);
-    MPI_Comm_rank(MPI_COMM_WORLD, &taskid);
-    MPI_Comm_size(MPI_COMM_WORLD, &numtasks);
-
-    if (!isPerfectSquare(numtasks))
+    
+     if (!isPerfectSquare(numtasks))
     {
         if (taskid == MASTER)
         {
@@ -198,25 +201,51 @@ void compute_mandelbrot(int argc, char *argv[])
                     z_x_squared = z_x * z_x;
                     z_y_squared = z_y * z_y;
                 };
+                printf("Taskid: %d --> (%d, %d) --> Interação %d\n", taskid, i_x, i_y, iteration);
 
-                update_rgb_buffer(iteration, i_x, i_y);
+
+
+                // update_rgb_buffer(iteration, i_x, i_y);
                 // printf("(%d, %d): %d\n", image_buffer[(i_y_max * i_y) + i_x][0], image_buffer[(i_y_max * i_y) + i_x][1], image_buffer[(i_y_max * i_y) + i_x][2]);
                 // printf("ID:%d -> (%d, %d)\n", taskid, i_x, i_y);
+                if(taskid == MASTER){
+                    // printf("OK\n");
+                    update_rgb_buffer(iteration, i_x, i_y);
+                    for(k = 1; k < numtasks; k++){
+                        printf("OK_recebido: %d\n", k);
+                        MPI_Recv(image_buffer_unit, 3, MPI_INT, k, k, MPI_COMM_WORLD, &status);
+                        // update_rgb_buffer(image_buffer_unit[0], image_buffer_unit[1], image_buffer_unit[2]);
+                    }
+                } else{
+                    image_buffer_unit[0] = iteration;
+                    image_buffer_unit[1] = i_x;
+                    image_buffer_unit[2] = i_y; 
+                    MPI_Send(image_buffer_unit, 3, MPI_INT, MASTER, k, MPI_COMM_WORLD);
+                    // printf("OK222:\n");
+                }
             }
         };
-        MPI_Finalize();
     };
+    MPI_Finalize();
 };
 
 int main(int argc, char *argv[])
 {
-    init(argc, argv);
+    // MPI_Status status;
 
-    allocate_image_buffer();
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &taskid);
+    MPI_Comm_size(MPI_COMM_WORLD, &numtasks);
 
-    compute_mandelbrot(argc, argv);
+    init();
 
-    write_to_file();
+    allocate_image_buffer(taskid);
+    // printf("Memória alocada!\n");
+
+    compute_mandelbrot(numtasks, taskid);
+    // printf("OK!!!\n");
+
+    // write_to_file();
 
     return 0;
 };
