@@ -15,13 +15,21 @@ double pixel_height;
 int iteration_max = 200;
 
 int image_size;
-int image_buffer_unit[3];
+int *i_xs;
+int *i_ys;
+int *iterations;
+int *i_xs_b;
+int *i_ys_b;
+int *iterations_b;
 unsigned char **image_buffer;
+int size_max;
 
 // MPI:
-int numtasks, taskid, len, tag;
+int numtasks, taskid, len;
+int tag_iteration = 0;
+int tag_x = 1;
+int tag_y = 2;
 char hostname[MPI_MAX_PROCESSOR_NAME];
-
 
 int max_process_per_dim;
 
@@ -51,19 +59,20 @@ int colors[17][3] = {
 };
 // printf("(x,y): (%d, %d)\n",  i_x, i_y);
 
-_Bool isPerfectSquare(long double x) 
-{   
-  // Find floating point value of  
-  // square root of x. 
-  long double sr = sqrt(x); 
-  
-  // If square root is an integer 
-  return ((sr - floor(sr)) == 0); 
-} 
+_Bool isPerfectSquare(long double x)
+{
+    // Find floating point value of
+    // square root of x.
+    long double sr = sqrt(x);
+
+    // If square root is an integer
+    return ((sr - floor(sr)) == 0);
+}
 
 void allocate_image_buffer(int taskid)
-{   
-    if(taskid == MASTER){
+{
+    if (taskid == MASTER)
+    {
         int rgb_size = 3;
         image_buffer = (unsigned char **)malloc(sizeof(unsigned char *) * image_buffer_size);
 
@@ -71,6 +80,29 @@ void allocate_image_buffer(int taskid)
         {
             image_buffer[i] = (unsigned char *)malloc(sizeof(unsigned char) * rgb_size);
         };
+    }
+
+    iterations = (int *)malloc((size_max) * sizeof(int));
+    i_xs = (int *)malloc((size_max) * sizeof(int));
+    i_ys = (int *)malloc((size_max) * sizeof(int));
+
+    iterations_b = (int *)malloc((size_max) * sizeof(int));
+    i_xs_b = (int *)malloc((size_max) * sizeof(int));
+    i_ys_b = (int *)malloc((size_max) * sizeof(int));
+
+    for (int i = 0; i < size_max; i++)
+    {
+        // iterations[i] = (int *)malloc(sizeof(int));
+        // i_xs[i] = (int *)malloc(sizeof(int));
+        // i_ys[i] = (int *)malloc(sizeof(int));
+
+        iterations[i] = -1;
+        i_xs[i] = -1;
+        i_ys[i] = -1;
+
+        iterations_b[i] = -1;
+        i_xs_b[i] = -1;
+        i_ys_b[i] = -1;
     }
 };
 
@@ -82,7 +114,7 @@ void init()
     c_y_max = 0.754;
 
     // MUDAR ISSO
-    image_size = 8;
+    image_size = 64;
 
     max_process_per_dim = sqrt(numtasks);
     // printf("MAX = %d\n", max_process_per_dim);
@@ -93,6 +125,8 @@ void init()
 
     pixel_width = (c_x_max - c_x_min) / i_x_max;
     pixel_height = (c_y_max - c_y_min) / i_y_max;
+
+    size_max = (image_size / max_process_per_dim + 1)*(image_size / max_process_per_dim + 1);
 };
 
 void update_rgb_buffer(int iteration, int x, int y)
@@ -149,14 +183,14 @@ void compute_mandelbrot(int numtasks, int taskid)
     int i_y;
     int i_x_thread;
     int i_y_thread;
-    int k;
+    int k = 0;
 
     double c_x;
     double c_y;
 
     MPI_Status status;
-    
-     if (!isPerfectSquare(numtasks))
+
+    if (!isPerfectSquare(numtasks))
     {
         if (taskid == MASTER)
         {
@@ -165,13 +199,14 @@ void compute_mandelbrot(int numtasks, int taskid)
     }
     else
     {
-        if (taskid == MASTER){
-            printf("MASTER: Number of MPI tasks is: %d\n",numtasks);
+        if (taskid == MASTER)
+        {
+            printf("MASTER: Number of MPI tasks is: %d\n", numtasks);
         }
-        i_x_thread = taskid/max_process_per_dim; 
-        i_y_thread = taskid%max_process_per_dim;
+        i_x_thread = taskid / max_process_per_dim;
+        i_y_thread = taskid % max_process_per_dim;
 
-        for (i_y = i_y_thread; i_y < i_y_max; i_y+=max_process_per_dim)
+        for (i_y = i_y_thread; i_y < i_y_max; i_y += max_process_per_dim)
         {
             c_y = c_y_min + i_y * pixel_height;
 
@@ -180,7 +215,7 @@ void compute_mandelbrot(int numtasks, int taskid)
                 c_y = 0.0;
             };
 
-            for (i_x = i_x_thread; i_x < i_x_max; i_x+=max_process_per_dim)
+            for (i_x = i_x_thread; i_x < i_x_max; i_x += max_process_per_dim)
             {
                 c_x = c_x_min + i_x * pixel_width;
 
@@ -201,32 +236,70 @@ void compute_mandelbrot(int numtasks, int taskid)
                     z_x_squared = z_x * z_x;
                     z_y_squared = z_y * z_y;
                 };
-                printf("Taskid: %d --> (%d, %d) --> Interação %d\n", taskid, i_x, i_y, iteration);
+                // printf("Taskid: %d --> (%d, %d) --> Interação %d\n", taskid, i_x, i_y, iteration);
 
-
-
+                iterations[k] = iteration;
+                i_xs[k] = i_x;
+                i_ys[k] = i_y;
+                k += 1;
                 // update_rgb_buffer(iteration, i_x, i_y);
                 // printf("(%d, %d): %d\n", image_buffer[(i_y_max * i_y) + i_x][0], image_buffer[(i_y_max * i_y) + i_x][1], image_buffer[(i_y_max * i_y) + i_x][2]);
                 // printf("ID:%d -> (%d, %d)\n", taskid, i_x, i_y);
-                if(taskid == MASTER){
-                    // printf("OK\n");
-                    update_rgb_buffer(iteration, i_x, i_y);
-                    for(k = 1; k < numtasks; k++){
-                        printf("OK_recebido: %d\n", k);
-                        MPI_Recv(image_buffer_unit, 3, MPI_INT, k, k, MPI_COMM_WORLD, &status);
-                        // update_rgb_buffer(image_buffer_unit[0], image_buffer_unit[1], image_buffer_unit[2]);
-                    }
-                } else{
-                    image_buffer_unit[0] = iteration;
-                    image_buffer_unit[1] = i_x;
-                    image_buffer_unit[2] = i_y; 
-                    MPI_Send(image_buffer_unit, 3, MPI_INT, MASTER, k, MPI_COMM_WORLD);
-                    // printf("OK222:\n");
-                }
+                // if(taskid == MASTER){
+                //     // printf("OK\n");
+                //     update_rgb_buffer(iteration, i_x, i_y);
+                //     for(k = 1; k < numtasks; k++){
+                //         printf("OK_recebido: %d\n", k);
+                //         MPI_Recv(image_buffer_unit, 3, MPI_INT, k, k, MPI_COMM_WORLD, &status);
+                //         // update_rgb_buffer(image_buffer_unit[0], image_buffer_unit[1], image_buffer_unit[2]);
+                //     }
+                // } else{
+                //     image_buffer_unit[0] = iteration;
+                //     image_buffer_unit[1] = i_x;
+                //     image_buffer_unit[2] = i_y;
+                //     MPI_Send(image_buffer_unit, 3, MPI_INT, MASTER, k, MPI_COMM_WORLD);
+                //     // printf("OK222:\n");
+                // }
             }
         };
     };
-    MPI_Finalize();
+
+    if (taskid != MASTER)
+    {
+        MPI_Send(iterations, size_max, MPI_INT, MASTER, tag_iteration, MPI_COMM_WORLD);
+        MPI_Send(i_xs, size_max, MPI_INT, MASTER, tag_x, MPI_COMM_WORLD);
+        MPI_Send(i_ys, size_max, MPI_INT, MASTER, tag_y, MPI_COMM_WORLD);
+    }
+
+    if (taskid == MASTER)
+    {
+        for (int l = 0; l < size_max; l++)
+        {
+            if (iterations_b[l] > 0)
+            {
+                update_rgb_buffer(iterations[l], i_xs[l], i_ys[l]);
+                printf("Taskid: %d --> (%d, %d) --> Interação %d\n", 0, i_xs[l], i_ys[l], iterations[l]);
+            }
+        }
+        for (k = 1; k < numtasks; k++)
+        {
+            // printf("%d\n", iterations_b[0]);
+            MPI_Recv(iterations_b, size_max, MPI_INT, k, tag_iteration, MPI_COMM_WORLD, &status);
+            MPI_Recv(i_xs_b, size_max, MPI_INT, k, tag_x, MPI_COMM_WORLD, &status);
+            MPI_Recv(i_ys_b, size_max, MPI_INT, k, tag_y, MPI_COMM_WORLD, &status);
+            // printf("%d\n", iterations_b[0]);
+
+            // printf("OK\n");
+            for (int l = 0; l < size_max; l++)
+            {
+                if (iterations_b[l] > 0)
+                {
+                    update_rgb_buffer(iterations_b[l], i_xs_b[l], i_ys_b[l]);
+                    // printf("Taskid: %d --> (%d, %d) --> Interação %d\n", k, i_xs_b[l], i_ys_b[l], iterations_b[l]);
+                }
+            }
+        }
+    }
 };
 
 int main(int argc, char *argv[])
@@ -245,7 +318,12 @@ int main(int argc, char *argv[])
     compute_mandelbrot(numtasks, taskid);
     // printf("OK!!!\n");
 
-    // write_to_file();
+    if (taskid == MASTER)
+    {
+        write_to_file();
+    }
+
+    MPI_Finalize();
 
     return 0;
 };
