@@ -153,7 +153,8 @@ void compute_mandelbrot(){
             };
 
             update_rgb_buffer(iteration, i_x, i_y);
-            printf("(%d, %d): %d\n", image_buffer[(i_y_max * i_y) + i_x][0], image_buffer[(i_y_max * i_y) + i_x][1], image_buffer[(i_y_max * i_y) + i_x][2]);
+            printf("Taskid: 0 --> (%d, %d) --> Interação %d\n", i_x, i_y, iteration);
+
 
         };
     };

@@ -37,7 +37,7 @@ int i_x_max;
 int i_y_max;
 int image_buffer_size;
 
-int gradient_size = 64;
+int gradient_size = 16;
 int colors[17][3] = {
     {66, 30, 15},
     {25, 7, 26},
@@ -114,7 +114,7 @@ void init()
     c_y_max = 0.754;
 
     // MUDAR ISSO
-    image_size = 64;
+    image_size = 4096;
 
     max_process_per_dim = sqrt(numtasks);
     // printf("MAX = %d\n", max_process_per_dim);
@@ -126,7 +126,7 @@ void init()
     pixel_width = (c_x_max - c_x_min) / i_x_max;
     pixel_height = (c_y_max - c_y_min) / i_y_max;
 
-    size_max = (image_size / max_process_per_dim + 1)*(image_size / max_process_per_dim + 1);
+    size_max = (image_size / max_process_per_dim + 1) * (image_size / max_process_per_dim + 1);
 };
 
 void update_rgb_buffer(int iteration, int x, int y)
@@ -270,15 +270,14 @@ void compute_mandelbrot(int numtasks, int taskid)
         MPI_Send(i_xs, size_max, MPI_INT, MASTER, tag_x, MPI_COMM_WORLD);
         MPI_Send(i_ys, size_max, MPI_INT, MASTER, tag_y, MPI_COMM_WORLD);
     }
-
-    if (taskid == MASTER)
+    else
     {
         for (int l = 0; l < size_max; l++)
         {
-            if (iterations_b[l] > 0)
+            if (iterations[l] > 0)
             {
+                // printf("Taskid: %d --> (%d, %d) --> Interação %d\n", 0, i_xs[l], i_ys[l], iterations[l]);
                 update_rgb_buffer(iterations[l], i_xs[l], i_ys[l]);
-                printf("Taskid: %d --> (%d, %d) --> Interação %d\n", 0, i_xs[l], i_ys[l], iterations[l]);
             }
         }
         for (k = 1; k < numtasks; k++)
