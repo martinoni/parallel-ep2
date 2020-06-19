@@ -2,7 +2,46 @@
 #include <stdlib.h>
 #include <math.h>
 #include <mpi.h>
+#include <time.h>
+#include <sys/time.h>
+
 #define MASTER 0
+
+struct timer_info
+{
+    clock_t c_start;
+    clock_t c_end;
+    struct timespec t_start;
+    struct timespec t_end;
+    struct timeval v_start;
+    struct timeval v_end;
+};
+
+struct timer_info timer;
+
+void start_timer()
+{
+    timer.c_start = clock();
+    clock_gettime(CLOCK_MONOTONIC, &timer.t_start);
+    gettimeofday(&timer.v_start, NULL);
+}
+
+void stop_timer()
+{
+    timer.c_end = clock();
+    clock_gettime(CLOCK_MONOTONIC, &timer.t_end);
+    gettimeofday(&timer.v_end, NULL);
+}
+
+void print_results()
+{
+    printf("%f, %f , %f\n",
+           (double)(timer.c_end - timer.c_start) / (double)CLOCKS_PER_SEC,
+           (double)(timer.t_end.tv_sec - timer.t_start.tv_sec) +
+               (double)(timer.t_end.tv_nsec - timer.t_start.tv_nsec) / 1000000000.0,
+           (double)(timer.v_end.tv_sec - timer.v_start.tv_sec) +
+               (double)(timer.v_end.tv_usec - timer.v_start.tv_usec) / 1000000.0);
+}
 
 double c_x_min;
 double c_x_max;
@@ -313,13 +352,18 @@ int main(int argc, char *argv[])
 
     allocate_image_buffer(taskid);
     // printf("Memória alocada!\n");
-
+    if (taskid == MASTER)
+    {
+        start_timer();
+    }
     compute_mandelbrot(numtasks, taskid);
+    stop_timer();
     // printf("OK!!!\n");
 
     if (taskid == MASTER)
     {
         write_to_file();
+        print_results();
     }
 
     MPI_Finalize();

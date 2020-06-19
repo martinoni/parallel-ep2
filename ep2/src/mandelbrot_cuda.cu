@@ -86,10 +86,20 @@ __device__ int colors[17][3] = {
                     };
 
 void allocate_image_buffer(){
+    printf("OK");
     int rgb_size = 3;
     image_buffer_formatted = (unsigned char **) malloc(sizeof(unsigned char* ) * image_buffer_size);
     image_buffer = (unsigned char *) malloc(sizeof(unsigned char) * image_buffer_size*rgb_size);
     cudaMalloc((void **)&d_image_buffer, sizeof(unsigned char) * image_buffer_size * rgb_size);
+
+    // cudaError_t err = cudaGetLastError();
+
+    // if ( err != cudaSuccess )
+    // {
+    //    printf("CUDA Error on allocate: %s\n", cudaGetErrorString(err));       
+
+    //    // Possibly: exit(-1) if program cannot continue....
+    // }
 
     for(int i = 0; i < image_buffer_size; i++){
         image_buffer_formatted[i] = (unsigned char *) malloc(sizeof(unsigned char) * rgb_size);
@@ -97,23 +107,25 @@ void allocate_image_buffer(){
 };
 
 void init(int argc, char *argv[]){
-    if(argc < 6){
-        printf("usage: ./mandelbrot_seq c_x_min c_x_max c_y_min c_y_max image_size grid_x grid_y block_x block_y\n");
-        printf("examples with image_size = 4096:\n");
-        printf("    Triple Spiral Valley: ./mandelbrot_seq -0.188 -0.012 0.554 0.754 4096\n");
+    if(argc < 4){
+        printf("usage: ./mandelbrot_seq grid_x grid_y block_x block_y\n");
+        printf("examples with image_size:\n");
+        printf("    Triple Spiral Valley: ./mandelbrot_seq 4 4 2 2\n");
         exit(0);
     }
     else{
-        sscanf(argv[1], "%lf", &c_x_min);
-        sscanf(argv[2], "%lf", &c_x_max);
-        sscanf(argv[3], "%lf", &c_y_min);
-        sscanf(argv[4], "%lf", &c_y_max);
-        sscanf(argv[5], "%d", &image_size);
-        sscanf(argv[6], "%d", &grid_x);
-        sscanf(argv[7], "%d", &grid_y);
-        sscanf(argv[8], "%d", &block_x);
-        sscanf(argv[9], "%d", &block_y);
+        sscanf(argv[1], "%d", &grid_x);
+        sscanf(argv[2], "%d", &grid_y);
+        sscanf(argv[3], "%d", &block_x);
+        sscanf(argv[4], "%d", &block_y);
 
+
+        c_x_min = -0.188;
+        c_x_max = -0.012;
+        c_y_min =  0.554;
+        c_y_max =  0.754;
+        
+        image_size = 4096;
         
         i_x_max           = image_size;
         i_y_max           = image_size;
@@ -160,7 +172,7 @@ void write_to_file(){
     fprintf(file, "P6\n %s\n %d\n %d\n %d\n", comment,
             i_x_max, i_y_max, max_color_component_value);
 
-    fwrite(image_buffer, sizeof(image_buffer[0]), 1, file);
+    // fwrite(image_buffer, sizeof(image_buffer[0]), 1, file);
 
     for(int i = 0; i < image_buffer_size; i++){
         fwrite(image_buffer_formatted[i], 1 , 3, file);
@@ -263,8 +275,15 @@ void compute_mandelbrot(){
     dim3 gridDim(grid_x, grid_y, 1);
 
     calc<<<  gridDim, blockDim, 0 >>>(image_size, c_x_min, c_y_min, pixel_height, pixel_width, i_x_max, i_y_max, image_buffer_size, d_image_buffer);
+    // cudaError_t err = cudaGetLastError();
+
+    // if ( err != cudaSuccess )
+    // {
+    //    printf("CUDA Error on compute: %s\n", cudaGetErrorString(err));       
+
+    //    // Possibly: exit(-1) if program cannot continue....
+    // }
     cudaMemcpy(image_buffer, d_image_buffer, sizeof(unsigned char)*image_buffer_size*3, cudaMemcpyDeviceToHost);
-    cudaFree(d_image_buffer);
 };
 
 
@@ -272,11 +291,15 @@ int main(int argc, char *argv[]){
     init(argc, argv);
 
     allocate_image_buffer();
+    printf("Buffer alocado!\n");
     start_timer();
     compute_mandelbrot();
     stop_timer();
     write_to_file();
-    print_results();   
+    print_results();  
+    cudaFree(d_image_buffer);
+    free(image_buffer);
+    free(image_buffer_formatted); 
 
     return 0;
 };
