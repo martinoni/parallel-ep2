@@ -362,7 +362,7 @@ int main(int argc, char *argv[])
 
     if (taskid == MASTER)
     {
-        write_to_file();
+        // write_to_file();
         print_results();
     }
 

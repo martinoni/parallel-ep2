@@ -86,7 +86,7 @@ __device__ int colors[17][3] = {
                     };
 
 void allocate_image_buffer(){
-    printf("OK");
+    // printf("OK");
     int rgb_size = 3;
     image_buffer_formatted = (unsigned char **) malloc(sizeof(unsigned char* ) * image_buffer_size);
     image_buffer = (unsigned char *) malloc(sizeof(unsigned char) * image_buffer_size*rgb_size);
@@ -291,11 +291,11 @@ int main(int argc, char *argv[]){
     init(argc, argv);
 
     allocate_image_buffer();
-    printf("Buffer alocado!\n");
+    // printf("Buffer alocado!\n");
     start_timer();
     compute_mandelbrot();
     stop_timer();
-    write_to_file();
+    // write_to_file();
     print_results();  
     cudaFree(d_image_buffer);
     free(image_buffer);
