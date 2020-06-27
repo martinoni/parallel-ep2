@@ -288,18 +288,17 @@ void compute_mandelbrot(){
 
 
 int main(int argc, char *argv[]){
+    start_timer();
     init(argc, argv);
 
     allocate_image_buffer();
     // printf("Buffer alocado!\n");
-    start_timer();
     compute_mandelbrot();
-    stop_timer();
-    // write_to_file();
-    print_results();  
+    write_to_file();
     cudaFree(d_image_buffer);
     free(image_buffer);
     free(image_buffer_formatted); 
-
+    stop_timer();
+    print_results();  
     return 0;
 };

@@ -357,12 +357,12 @@ int main(int argc, char *argv[])
         start_timer();
     }
     compute_mandelbrot(numtasks, taskid);
-    stop_timer();
     // printf("OK!!!\n");
 
     if (taskid == MASTER)
     {
-        // write_to_file();
+        write_to_file();
+        stop_timer();
         print_results();
     }
 
