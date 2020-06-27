@@ -96,15 +96,10 @@ int colors[17][3] = {
     {106, 52, 3},
     {16, 16, 16},
 };
-// printf("(x,y): (%d, %d)\n",  i_x, i_y);
 
 _Bool isPerfectSquare(long double x)
 {
-    // Find floating point value of
-    // square root of x.
     long double sr = sqrt(x);
-
-    // If square root is an integer
     return ((sr - floor(sr)) == 0);
 }
 
@@ -131,10 +126,6 @@ void allocate_image_buffer(int taskid)
 
     for (int i = 0; i < size_max; i++)
     {
-        // iterations[i] = (int *)malloc(sizeof(int));
-        // i_xs[i] = (int *)malloc(sizeof(int));
-        // i_ys[i] = (int *)malloc(sizeof(int));
-
         iterations[i] = -1;
         i_xs[i] = -1;
         i_ys[i] = -1;
@@ -152,11 +143,9 @@ void init()
     c_y_min = 0.554;
     c_y_max = 0.754;
 
-    // MUDAR ISSO
     image_size = 4096;
 
     max_process_per_dim = sqrt(numtasks);
-    // printf("MAX = %d\n", max_process_per_dim);
 
     i_x_max = image_size;
     i_y_max = image_size;
@@ -275,30 +264,11 @@ void compute_mandelbrot(int numtasks, int taskid)
                     z_x_squared = z_x * z_x;
                     z_y_squared = z_y * z_y;
                 };
-                // printf("Taskid: %d --> (%d, %d) --> Interação %d\n", taskid, i_x, i_y, iteration);
 
                 iterations[k] = iteration;
                 i_xs[k] = i_x;
                 i_ys[k] = i_y;
                 k += 1;
-                // update_rgb_buffer(iteration, i_x, i_y);
-                // printf("(%d, %d): %d\n", image_buffer[(i_y_max * i_y) + i_x][0], image_buffer[(i_y_max * i_y) + i_x][1], image_buffer[(i_y_max * i_y) + i_x][2]);
-                // printf("ID:%d -> (%d, %d)\n", taskid, i_x, i_y);
-                // if(taskid == MASTER){
-                //     // printf("OK\n");
-                //     update_rgb_buffer(iteration, i_x, i_y);
-                //     for(k = 1; k < numtasks; k++){
-                //         printf("OK_recebido: %d\n", k);
-                //         MPI_Recv(image_buffer_unit, 3, MPI_INT, k, k, MPI_COMM_WORLD, &status);
-                //         // update_rgb_buffer(image_buffer_unit[0], image_buffer_unit[1], image_buffer_unit[2]);
-                //     }
-                // } else{
-                //     image_buffer_unit[0] = iteration;
-                //     image_buffer_unit[1] = i_x;
-                //     image_buffer_unit[2] = i_y;
-                //     MPI_Send(image_buffer_unit, 3, MPI_INT, MASTER, k, MPI_COMM_WORLD);
-                //     // printf("OK222:\n");
-                // }
             }
         };
     };
@@ -315,25 +285,20 @@ void compute_mandelbrot(int numtasks, int taskid)
         {
             if (iterations[l] > 0)
             {
-                // printf("Taskid: %d --> (%d, %d) --> Interação %d\n", 0, i_xs[l], i_ys[l], iterations[l]);
                 update_rgb_buffer(iterations[l], i_xs[l], i_ys[l]);
             }
         }
         for (k = 1; k < numtasks; k++)
         {
-            // printf("%d\n", iterations_b[0]);
             MPI_Recv(iterations_b, size_max, MPI_INT, k, tag_iteration, MPI_COMM_WORLD, &status);
             MPI_Recv(i_xs_b, size_max, MPI_INT, k, tag_x, MPI_COMM_WORLD, &status);
             MPI_Recv(i_ys_b, size_max, MPI_INT, k, tag_y, MPI_COMM_WORLD, &status);
-            // printf("%d\n", iterations_b[0]);
 
-            // printf("OK\n");
             for (int l = 0; l < size_max; l++)
             {
                 if (iterations_b[l] > 0)
                 {
                     update_rgb_buffer(iterations_b[l], i_xs_b[l], i_ys_b[l]);
-                    // printf("Taskid: %d --> (%d, %d) --> Interação %d\n", k, i_xs_b[l], i_ys_b[l], iterations_b[l]);
                 }
             }
         }
@@ -342,22 +307,20 @@ void compute_mandelbrot(int numtasks, int taskid)
 
 int main(int argc, char *argv[])
 {
-    // MPI_Status status;
-
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &taskid);
     MPI_Comm_size(MPI_COMM_WORLD, &numtasks);
 
-    init();
-
-    allocate_image_buffer(taskid);
-    // printf("Memória alocada!\n");
     if (taskid == MASTER)
     {
         start_timer();
     }
+
+    init();
+
+    allocate_image_buffer(taskid);
+
     compute_mandelbrot(numtasks, taskid);
-    // printf("OK!!!\n");
 
     if (taskid == MASTER)
     {
