@@ -106,7 +106,7 @@ void init(int argc, char *argv[]) {
     c_y_min = 0.554;
     c_y_max = 0.754;
 
-    image_size = 4096;
+    image_size = 22000;
 
     i_x_max = image_size;
     i_y_max = image_size;
