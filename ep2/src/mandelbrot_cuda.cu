@@ -90,23 +90,25 @@ void allocate_image_buffer() {
 };
 
 void init(int argc, char *argv[]) {
-  if (argc < 4) {
-    printf("usage: ./mandelbrot_seq grid_x grid_y block_x block_y\n");
-    printf("examples with image_size:\n");
-    printf("    Triple Spiral Valley: ./mandelbrot_seq 4 4 2 2\n");
+  if (argc < 10) {
+    printf("usage: ./mandelbrot_cuda c_x_min c_x_max c_y_min c_y_max image_size grid_x grid_y block_x block_y\n");
+    printf("examples with image_size = 11500:\n");
+    printf("    Full Picture:         ./mandelbrot_cuda -2.5 1.5 -2.0 2.0 11500 8 8 8 8\n");
+    printf("    Seahorse Valley:      ./mandelbrot_cuda -0.8 -0.7 0.05 0.15 11500 32 2 6 16\n");
+    printf("    Elephant Valley:      ./mandelbrot_cuda 0.175 0.375 -0.1 0.1 11500 12 4 32 32\n");
+    printf("    Triple Spiral Valley: ./mandelbrot_cuda -0.188 -0.012 0.554 0.754 11500 3 3 7 15\n");
+    exit(0);
     exit(0);
   } else {
-    sscanf(argv[1], "%d", &grid_x);
-    sscanf(argv[2], "%d", &grid_y);
-    sscanf(argv[3], "%d", &block_x);
-    sscanf(argv[4], "%d", &block_y);
-
-    c_x_min = -0.188;
-    c_x_max = -0.012;
-    c_y_min = 0.554;
-    c_y_max = 0.754;
-
-    image_size = 4096;
+    sscanf(argv[1], "%lf", &c_x_min);
+    sscanf(argv[2], "%lf", &c_x_max);
+    sscanf(argv[3], "%lf", &c_y_min);
+    sscanf(argv[4], "%lf", &c_y_max);
+    sscanf(argv[5], "%d", &image_size);
+    sscanf(argv[6], "%d", &grid_x);
+    sscanf(argv[7], "%d", &grid_y);
+    sscanf(argv[8], "%d", &block_x);
+    sscanf(argv[9], "%d", &block_y);
 
     i_x_max = image_size;
     i_y_max = image_size;
@@ -230,7 +232,6 @@ void compute_mandelbrot() {
 int main(int argc, char *argv[]) {
   start_timer();
   init(argc, argv);
-
   allocate_image_buffer();
   compute_mandelbrot();
   write_to_file();

@@ -64,7 +64,7 @@ unsigned char **image_buffer;
 int size_max;
 
 // MPI:
-int numtasks, taskid, len;
+int numprocess, taskid, len;
 int tag_iteration = 0;
 int tag_x = 1;
 int tag_y = 2;
@@ -96,12 +96,6 @@ int colors[17][3] = {
     {106, 52, 3},
     {16, 16, 16},
 };
-
-_Bool isPerfectSquare(long double x)
-{
-    long double sr = sqrt(x);
-    return ((sr - floor(sr)) == 0);
-}
 
 void allocate_image_buffer(int taskid)
 {
@@ -136,16 +130,35 @@ void allocate_image_buffer(int taskid)
     }
 };
 
-void init()
+void init(int argc, char *argv[])
 {
-    c_x_min = -0.188;
-    c_x_max = -0.012;
-    c_y_min = 0.554;
-    c_y_max = 0.754;
+      if(argc < 6){
+        if(taskid == MASTER){
+            printf("usage:  mpirun --quiet --host host:n_processes mandelbrot_ompi c_x_max c_y_min c_y_max image_size\n");
+            printf("examples on localhost with image_size = 11500:\n");
+            printf("    Full Picture:         mpirun --quiet --host localhost:2 mandelbrot_ompi  -2.5 1.5 -2.0 2.0 11500\n");
+            printf("    Seahorse Valley:      mpirun --quiet --host localhost:32 mandelbrot_ompi  -0.8 -0.7 0.05 0.15 11500\n");
+            printf("    Elephant Valley:      mpirun --quiet --host localhost:10 mandelbrot_ompi  0.175 0.375 -0.1 0.1 11500\n");
+            printf("    Triple Spiral Valley: mpirun --quiet --host localhost:64 mandelbrot_ompi  -0.188 -0.012 0.554 0.754 11500\n");
+            MPI_Finalize();
+            exit(0);
+        }
+    } else{
+        sscanf(argv[1], "%lf", &c_x_min);
+        sscanf(argv[2], "%lf", &c_x_max);
+        sscanf(argv[3], "%lf", &c_y_min);
+        sscanf(argv[4], "%lf", &c_y_max);
+        sscanf(argv[5], "%d", &image_size);
 
-    image_size = 4096;
+	    i_x_max           = image_size;
+        i_y_max           = image_size;
+        image_buffer_size = image_size * image_size;
 
-    max_process_per_dim = sqrt(numtasks);
+        pixel_width       = (c_x_max - c_x_min) / i_x_max;
+        pixel_height      = (c_y_max - c_y_min) / i_y_max;
+    };
+
+    max_process_per_dim = image_size/numprocess+1;
 
     i_x_max = image_size;
     i_y_max = image_size;
@@ -154,7 +167,7 @@ void init()
     pixel_width = (c_x_max - c_x_min) / i_x_max;
     pixel_height = (c_y_max - c_y_min) / i_y_max;
 
-    size_max = (image_size / max_process_per_dim + 1) * (image_size / max_process_per_dim + 1);
+    size_max = max_process_per_dim * image_size;
 };
 
 void update_rgb_buffer(int iteration, int x, int y)
@@ -198,7 +211,7 @@ void write_to_file()
     fclose(file);
 };
 
-void compute_mandelbrot(int numtasks, int taskid)
+void compute_mandelbrot(int numprocess, int taskid)
 {
     double z_x;
     double z_y;
@@ -209,8 +222,8 @@ void compute_mandelbrot(int numtasks, int taskid)
     int iteration;
     int i_x;
     int i_y;
-    int i_x_thread;
-    int i_y_thread;
+    int col;
+    int line;
     int k = 0;
 
     double c_x;
@@ -218,59 +231,42 @@ void compute_mandelbrot(int numtasks, int taskid)
 
     MPI_Status status;
 
-    if (!isPerfectSquare(numtasks))
+    for (int i = taskid; i < image_buffer_size; i += numprocess)
     {
-        if (taskid == MASTER)
-        {
-            printf("Quitting. Need an perfect square number of tasks: numtasks=%d\n", numtasks);
-        }
-    }
-    else
-    {
-        if (taskid == MASTER)
-        {
-            printf("MASTER: Number of MPI tasks is: %d\n", numtasks);
-        }
-        i_x_thread = taskid / max_process_per_dim;
-        i_y_thread = taskid % max_process_per_dim;
+        col = i/image_size;
+        line = i%image_size;
 
-        for (i_y = i_y_thread; i_y < i_y_max; i_y += max_process_per_dim)
-        {
-            c_y = c_y_min + i_y * pixel_height;
+        c_y = c_y_min + line * pixel_height;
 
-            if (fabs(c_y) < pixel_height / 2)
+        if (fabs(c_y) < pixel_height / 2)
+        {
+            c_y = 0.0;
+        };
+
+            c_x = c_x_min + col * pixel_width;
+
+            z_x = 0.0;
+            z_y = 0.0;
+
+            z_x_squared = 0.0;
+            z_y_squared = 0.0;
+
+            for (iteration = 0;
+                    iteration < iteration_max &&
+                    ((z_x_squared + z_y_squared) < escape_radius_squared);
+                    iteration++)
             {
-                c_y = 0.0;
+                z_y = 2 * z_x * z_y + c_y;
+                z_x = z_x_squared - z_y_squared + c_x;
+
+                z_x_squared = z_x * z_x;
+                z_y_squared = z_y * z_y;
             };
 
-            for (i_x = i_x_thread; i_x < i_x_max; i_x += max_process_per_dim)
-            {
-                c_x = c_x_min + i_x * pixel_width;
-
-                z_x = 0.0;
-                z_y = 0.0;
-
-                z_x_squared = 0.0;
-                z_y_squared = 0.0;
-
-                for (iteration = 0;
-                     iteration < iteration_max &&
-                     ((z_x_squared + z_y_squared) < escape_radius_squared);
-                     iteration++)
-                {
-                    z_y = 2 * z_x * z_y + c_y;
-                    z_x = z_x_squared - z_y_squared + c_x;
-
-                    z_x_squared = z_x * z_x;
-                    z_y_squared = z_y * z_y;
-                };
-
-                iterations[k] = iteration;
-                i_xs[k] = i_x;
-                i_ys[k] = i_y;
-                k += 1;
-            }
-        };
+            iterations[k] = iteration;
+            i_xs[k] = col;
+            i_ys[k] = line;
+            k += 1;
     };
 
     if (taskid != MASTER)
@@ -288,7 +284,7 @@ void compute_mandelbrot(int numtasks, int taskid)
                 update_rgb_buffer(iterations[l], i_xs[l], i_ys[l]);
             }
         }
-        for (k = 1; k < numtasks; k++)
+        for (k = 1; k < numprocess; k++)
         {
             MPI_Recv(iterations_b, size_max, MPI_INT, k, tag_iteration, MPI_COMM_WORLD, &status);
             MPI_Recv(i_xs_b, size_max, MPI_INT, k, tag_x, MPI_COMM_WORLD, &status);
@@ -307,20 +303,16 @@ void compute_mandelbrot(int numtasks, int taskid)
 
 int main(int argc, char *argv[])
 {
+    start_timer();
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &taskid);
-    MPI_Comm_size(MPI_COMM_WORLD, &numtasks);
+    MPI_Comm_size(MPI_COMM_WORLD, &numprocess);
 
-    if (taskid == MASTER)
-    {
-        start_timer();
-    }
-
-    init();
+    init(argc, argv);
 
     allocate_image_buffer(taskid);
 
-    compute_mandelbrot(numtasks, taskid);
+    compute_mandelbrot(numprocess, taskid);
 
     if (taskid == MASTER)
     {
