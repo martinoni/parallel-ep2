@@ -100,6 +100,7 @@ void init(int argc, char *argv[]) {
     exit(0);
     exit(0);
   } else {
+<<<<<<< HEAD
     sscanf(argv[1], "%lf", &c_x_min);
     sscanf(argv[2], "%lf", &c_x_max);
     sscanf(argv[3], "%lf", &c_y_min);
@@ -109,6 +110,19 @@ void init(int argc, char *argv[]) {
     sscanf(argv[7], "%d", &grid_y);
     sscanf(argv[8], "%d", &block_x);
     sscanf(argv[9], "%d", &block_y);
+=======
+    sscanf(argv[1], "%d", &grid_x);
+    sscanf(argv[2], "%d", &grid_y);
+    sscanf(argv[3], "%d", &block_x);
+    sscanf(argv[4], "%d", &block_y);
+
+    c_x_min = -0.188;
+    c_x_max = -0.012;
+    c_y_min = 0.554;
+    c_y_max = 0.754;
+
+    image_size = 22000;
+>>>>>>> 96fbca4fe4bd47a566ad9ad65dbeb7332bd90ef2
 
     i_x_max = image_size;
     i_y_max = image_size;
