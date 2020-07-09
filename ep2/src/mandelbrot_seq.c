@@ -48,7 +48,6 @@ double pixel_width;
 double pixel_height;
 
 int iteration_max = 200;
-int i_o;
 int image_size;
 unsigned char **image_buffer;
 
@@ -87,13 +86,13 @@ void allocate_image_buffer(){
 };
 
 void init(int argc, char *argv[]){
-    if(argc < 7){
-        printf("usage: ./mandelbrot_seq c_x_min c_x_max c_y_min c_y_max image_size i_o\n");
+    if(argc < 6){
+        printf("usage: ./mandelbrot_seq c_x_min c_x_max c_y_min c_y_max image_size\n");
         printf("examples with image_size = 11500:\n");
-        printf("    Full Picture:         ./mandelbrot_seq -2.5 1.5 -2.0 2.0 11500 1\n");
-        printf("    Seahorse Valley:      ./mandelbrot_seq -0.8 -0.7 0.05 0.15 11500 0\n");
-        printf("    Elephant Valley:      ./mandelbrot_seq 0.175 0.375 -0.1 0.1 11500 1\n");
-        printf("    Triple Spiral Valley: ./mandelbrot_seq -0.188 -0.012 0.554 0.754 11500 0\n");
+        printf("    Full Picture:         ./mandelbrot_seq -2.5 1.5 -2.0 2.0 11500\n");
+        printf("    Seahorse Valley:      ./mandelbrot_seq -0.8 -0.7 0.05 0.15 11500\n");
+        printf("    Elephant Valley:      ./mandelbrot_seq 0.175 0.375 -0.1 0.1 11500\n");
+        printf("    Triple Spiral Valley: ./mandelbrot_seq -0.188 -0.012 0.554 0.754 11500\n");
         exit(0);
     }
     else{
@@ -102,7 +101,6 @@ void init(int argc, char *argv[]){
         sscanf(argv[3], "%lf", &c_y_min);
         sscanf(argv[4], "%lf", &c_y_max);
         sscanf(argv[5], "%d", &image_size);
-	sscanf(argv[6], "%d", &i_o);
 	
         i_x_max           = image_size;
         i_y_max           = image_size;
@@ -199,20 +197,11 @@ void compute_mandelbrot(){
 
 int main(int argc, char *argv[]){
   init(argc,argv);
-  if(i_o==1){
-    start_timer();
-    allocate_image_buffer();
-    compute_mandelbrot();
-    write_to_file();
-    stop_timer();
-    print_results();   
-  }
-  else{
-    allocate_image_buffer();
-    start_timer();
-    compute_mandelbrot();
-    stop_timer();
-    print_results();
-  }
+  start_timer();
+  allocate_image_buffer();
+  compute_mandelbrot();
+  write_to_file();
+  stop_timer();
+  print_results();   
   return 0;
 };
